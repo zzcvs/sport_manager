@@ -1,0 +1,23 @@
+# 忽略 IDEA 配置文件
+.idea/
+*.iml
+
+# 忽略 Maven 编译输出目录
+target/
+
+maven/
+
+# 忽略 macOS 系统文件
+.DS_Store
+
+# 忽略日志文件
+*.log
+
+
+*.md
+
+*.bat
+
+.mvn/
+mvnw
+mvnw.cmd
