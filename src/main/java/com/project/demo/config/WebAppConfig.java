@@ -29,11 +29,15 @@ public class WebAppConfig implements WebMvcConfigurer {
         registration.addPathPatterns("/**");
         //方行的地址
         registration.excludePathPatterns(
-                "/user/login",      // 登录本身
-                "/user/register",   // 注册
-                "/user/state",      // 登录态探针，见下
-                "/upload/**",       // 静态图片，见下
-                "/error"            // 错误页
+                "/user/login",          // 登录本身
+                "/user/register",       // 注册
+                "/user/forget_password",// 找回密码
+                "/user/state",          // 登录态探针，见下
+                "/user_group/get_list", // 注册页需要读取用户组
+                "/auth/get_list",       // 首页/后台需要读取菜单权限
+                "/member_user/add",     // 注册会员时补充会员资料
+                "/upload/**",           // 静态图片，见下
+                "/error"                // 错误页
         );
         //根据需要拦截，一般设置所有地址拦截，放行公共连接
     }

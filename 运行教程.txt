@@ -1,0 +1,161 @@
+健身房管理系统（sport_manager）本地运行教程
+================================================
+
+一、项目结构
+------------------------------------------------
+后端：Spring Boot 2.2.5 + MyBatis-Plus + MySQL + Redis
+     端口 5000，上下文路径 /api（接口地址形如 http://localhost:5000/api/...）
+前台：Vue 2 + vue-cli 4，目录 src/main/resources/static/home，端口 8081
+后台：Vue 2 + vue-cli 4，目录 src/main/resources/static/admin，端口 8080
+数据库脚本：db/init.sql（本仓库原先缺失，已补上，含建表和演示数据）
+
+二、必须准备的软件（版本很重要）
+------------------------------------------------
+1. JDK 8（必须）
+   - Lombok 1.18.12 在 JDK 9+ 上不生成代码，JDK 17/21 会编译失败。
+   - 配置 JAVA_HOME，命令行执行 java -version 应显示 1.8.x。
+
+2. Maven 3.6+（或直接用 IDEA 自带的 Maven）
+
+3. MySQL 5.7 或 8.0
+   - 用户名 root，密码 123456（与 application.yml 一致；不一致就改 yml）
+   - MySQL 8 建议给 root 使用 mysql_native_password，或保持本项目已加上的
+     allowPublicKeyRetrieval=true 参数。
+
+4. Redis 5+（Windows 可装 Memurai / Redis for Windows，或用 WSL）
+   - 默认 127.0.0.1:6379，无密码，使用 2 号库。
+   - 不启动 Redis 会导致：登录 500、所有需要 token 的接口报错。
+
+5. Node.js 14.21.3（推荐）
+   - 两个前端都是 Vue 2 + vue-cli 4 + webpack 4，不建议用 Node 20/22。
+   - 如果只能用 Node 16/18，启动命令前加：
+     Windows CMD:  set NODE_OPTIONS=--openssl-legacy-provider
+     PowerShell :  $env:NODE_OPTIONS="--openssl-legacy-provider"
+   - 建议设置国内镜像：
+     npm config set registry https://registry.npmmirror.com
+
+三、启动步骤（推荐开 4 个终端）
+------------------------------------------------
+第 1 步：初始化数据库
+  在项目根目录执行（Windows CMD / PowerShell / Git Bash 均可）：
+     mysql -u root -p < db/init.sql
+  或者用 Navicat / DataGrip 打开 db/init.sql 整份运行。
+  执行成功后会创建 project_db 库、21 张表、演示数据和两个账号。
+
+第 2 步：启动 Redis
+     redis-server
+  验证：
+     redis-cli ping      -> 应返回 PONG
+
+第 3 步：启动后端（必须从项目根目录启动）
+     mvn spring-boot:run
+  看到 "Started Application" 且 "Tomcat started on port(s): 5000" 即成功。
+  也可以在 IDEA 里直接运行 com.project.demo.Application。
+  接口自测：
+     http://localhost:5000/api/article/get_list
+
+  注意：application.yml 里静态资源目录写的是相对路径
+  file:src/main/resources/static，所以后端一定要在项目根目录启动，
+  否则图片显示不出来、上传也会失败。
+
+第 4 步：启动后台管理端（新终端）
+     cd src/main/resources/static/admin
+     npm install
+     npm run dev
+  访问：http://localhost:8080
+  账号：admin    密码：123456
+
+第 5 步：启动用户端（新终端）
+     cd src/main/resources/static/home
+     npm install
+     npm run serve
+  访问：http://localhost:8081
+  账号：member   密码：123456（也可以自己注册一个“会员用户”账号）
+
+四、默认账号
+------------------------------------------------
+后台管理端  admin  / 123456   （用户组：管理员）
+用户端      member / 123456   （用户组：会员用户）
+说明：密码在前端用 RSA 公钥加密，后端用私钥解密后与数据库明文比较，
+      所以数据库里存的是明文 123456。
+
+五、本次为能正常运行所做的修复
+------------------------------------------------
+1. db/init.sql（新增）
+   原仓库没有任何建表/初始化 SQL，数据库为空时无法登录、所有列表页空白。
+   已按实体类和 Mapper 生成 21 张表，并写入演示数据、两个账号、后台菜单权限。
+
+2. src/main/resources/static/admin/package.json
+   - vue 从错误的 ^3.2.40 改为 ^2.6.12（代码是 Vue 2，装 Vue 3 会编译失败）
+   - 补充缺失依赖 jsencrypt、quill
+   - vue-template-compiler 与 vue 版本对齐
+
+3. src/main/resources/static/home/package.json
+   - 同样把 vue 改回 ^2.6.12
+   - 移除在新版 Node 上无法安装的 node-sass（项目里没有 scss 文件）
+   - 补充缺失依赖 bootstrap、quill、jsencrypt、vue-json-excel
+
+4. src/main/java/com/project/demo/entity/Article.java
+   - title 字段被误标成第二个 @TableId，会导致文章表初始化/查询报错，
+     已改为 @TableField。
+
+5. src/main/java/com/project/demo/interceptor/LoginInterceptor.java
+   - 原来所有请求都要求 token，导致未登录时首页的轮播图、公告、文章、
+     课程等 GET 列表接口全部 401，页面大面积空白。
+   - 现在 GET/HEAD 公开读取接口放行，写入类请求（POST/PUT/DELETE）仍需登录。
+
+6. src/main/java/com/project/demo/config/WebAppConfig.java
+   - 放行注册页需要的 /user_group/get_list、菜单需要的 /auth/get_list、
+     找回密码 /user/forget_password、注册补充会员资料的 /member_user/add。
+
+7. src/main/java/com/project/demo/service/base/BaseService.java
+   - readQuery 用 split("=") 解析参数，遇到 page= 这类空值会数组越界，
+     导致 /auth/get_list?page= 直接 500（首页导航和后台菜单都会用到）。
+     已改为按第一个 '=' 拆分。
+
+8. src/main/resources/application.yml
+   - JDBC URL 增加 allowPublicKeyRetrieval=true，兼容 MySQL 8 默认认证方式。
+
+六、常见问题排查
+------------------------------------------------
+1. 启动后端报 Communications link failure / Connection refused
+   -> MySQL 没启动，或端口/账号密码不对，先确认 mysql -u root -p 能登录。
+
+2. 登录报 500，日志里是 RedisConnectionFailureException
+   -> Redis 没启动。执行 redis-server，redis-cli ping 必须返回 PONG。
+
+3. 页面能打开但没有数据，浏览器 F12 里接口 401/500
+   -> 后端没启动；或前端访问的主机名解析不到 5000 端口。
+      前端请求地址是 http://当前浏览器主机名:5000/，请统一用 localhost 访问，
+      并确认后端监听 5000。
+
+4. npm install 报 node-sass / Python / node-gyp 错误
+   -> 本项目已移除 node-sass，确认用的是 Node 14 左右版本，并清掉旧依赖：
+      rm -rf node_modules package-lock.json 后再 npm install（Windows 用 rmdir /s /q）。
+
+5. npm run dev 报 digital envelope routines::unsupported
+   -> Node 版本过高，换 Node 14，或按第二节设置 NODE_OPTIONS。
+
+6. 图片不显示
+   -> 后端必须从项目根目录启动；图片实际地址是
+      http://localhost:5000/api/upload/xxx.jpg。
+      演示数据里的图片引用的是项目自带的 jpg 文件。
+
+7. 后台菜单不全
+   -> db/init.sql 里的 auth 表就是菜单/权限数据，必须完整导入，不要只建表。
+
+8. 端口被占用
+   -> 5000 后端、8080 后台、8081 前台。可在 application.yml 改后端端口，
+      在各自 vue.config.js 改前端端口。改后端端口后，前端
+      src/plugins/port_config.js（home）和 src/main.js（admin）里的 host 也要同步。
+
+七、已验证内容
+------------------------------------------------
+- 后端 JDK 8 + Maven 编译通过。
+- 使用 MySQL 8.0.34 + Redis 7.2.4 实际启动后端成功。
+- db/init.sql 在真实 MySQL 8 上完整执行：21 张表、账号、36 条权限数据。
+- 接口验证通过：admin/member 登录、登录态 /user/state、游客导航
+  /auth/get_list、课程/会员卡/公告/文章列表、注册用户组接口。
+- admin 与 home 两个前端 npm install + npm run build 均成功。
+- 未做浏览器逐页点击测试（本机无法把 5000 端口暴露给预览浏览器）；
+  页面细节请在本地按上述步骤打开确认。

@@ -435,8 +435,13 @@ public class BaseService<E>{
             String[] querys = queryString.split("&");
             Map<String, String> map = new HashMap<>();
             for (String query : querys) {
-                String[] q = query.split("=");
-                map.put(q[0], q[1]);
+                // 用 indexOf 拆分，兼容 page= 这类空值参数，以及值中包含 '=' 的情况
+                int index = query.indexOf('=');
+                if (index < 0) {
+                    map.put(query, "");
+                } else {
+                    map.put(query.substring(0, index), query.substring(index + 1));
+                }
             }
             map.remove(FindConfig.PAGE);
             map.remove(FindConfig.SIZE);

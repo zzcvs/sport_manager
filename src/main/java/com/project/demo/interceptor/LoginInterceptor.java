@@ -33,10 +33,17 @@ public class LoginInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // ② 解析身份（唯一一处需要懂 token 的地方）
+        // ② 公开的只读接口放行：首页/列表页在未登录时也要能展示数据
+        //    （写入类请求仍然需要登录，POST/PUT/DELETE 会继续走下面的 token 校验）
+        String method = request.getMethod();
+        if ("GET".equals(method) || "HEAD".equals(method)) {
+            return true;
+        }
+
+        // ③ 解析身份（唯一一处需要懂 token 的地方）
         Integer userId = tokenService.getUserId(request.getHeader(this.tokenName));
 
-        // ③ 校验失败：401 + JSON，并且把 body 写完再 return false
+        // ④ 校验失败：401 + JSON，并且把 body 写完再 return false
         if (userId == null || userId == 0) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);   // 401
             response.setHeader("Content-Type", "application/json;charset=UTF-8");
@@ -44,7 +51,7 @@ public class LoginInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // ④ 把身份放进去，后面的 Controller 直接拿，不用再解析一次
+        // ⑤ 把身份放进去，后面的 Controller 直接拿，不用再解析一次
         request.setAttribute("userId", userId);
 
 //        setHeader(request, response);
